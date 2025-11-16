@@ -29,6 +29,16 @@ export function GoalCard({ goal, currentAccount, onDonate, onWithdraw }: GoalCar
   const deadlineDate = new Date(Number(goal.deadline) * 1000);
   const isPastDeadline = Date.now() > deadlineDate.getTime();
   const isTargetReached = goal.balance >= goal.targetAmount;
+  const remainingAmount =
+    goal.targetAmount > goal.balance ? goal.targetAmount - goal.balance : 0n;
+  const remainingEth = Number(ethers.formatEther(remainingAmount));
+  const millisecondsInDay = 24 * 60 * 60 * 1000;
+  const daysRemaining = Math.max(
+    Math.ceil((deadlineDate.getTime() - Date.now()) / millisecondsInDay),
+    0
+  );
+  const requiredDaily = daysRemaining > 0 ? remainingEth / daysRemaining : remainingEth;
+  const requiredWeekly = requiredDaily * 7;
 
   const getStatus = () => {
     if (goal.isWithdrawn) return { label: 'Completed', class: 'completed' };
@@ -38,6 +48,26 @@ export function GoalCard({ goal, currentAccount, onDonate, onWithdraw }: GoalCar
   };
 
   const status = getStatus();
+
+  const formatEthValue = (value: number) => {
+    if (value === 0) return '0';
+    if (value < 0.001) return value.toFixed(6);
+    if (value < 0.1) return value.toFixed(4);
+    return value.toFixed(3);
+  };
+
+  const getCoachMessage = () => {
+    if (goal.isWithdrawn) return 'Goal closed: funds already withdrawn.';
+    if (isTargetReached) return 'Target hit! Withdraw anytime or keep the momentum going.';
+    if (daysRemaining === 0)
+      return 'Deadline reached: every new donation accelerates your unlock window.';
+    if (requiredDaily === 0) return 'All set! You can already meet your target on time.';
+    if (requiredDaily < 0.01)
+      return 'Micro-savings pace: even tiny daily boosts will secure the goal.';
+    if (requiredDaily < 0.05)
+      return 'Sustainable rhythm: invite a friend or schedule light daily boosts.';
+    return 'Ambitious sprint: pair consistent deposits with community support to finish strong.';
+  };
 
   const handleDonate = async () => {
     if (!donateAmount || parseFloat(donateAmount) <= 0) {
@@ -106,6 +136,35 @@ export function GoalCard({ goal, currentAccount, onDonate, onWithdraw }: GoalCar
         </div>
         <div style={{ textAlign: 'center', fontSize: '0.9rem', color: '#666' }}>
           {progress.toFixed(1)}% of goal
+        </div>
+
+        <div className="insights-panel">
+          <div className="insights-header">
+            <span>Smart savings coach</span>
+            <span className="pill">beta</span>
+          </div>
+
+          <div className="insights-grid">
+            <div className="insight-tile">
+              <label>Days remaining</label>
+              <div className="insight-value">
+                {daysRemaining > 0 ? `${daysRemaining} day${daysRemaining !== 1 ? 's' : ''}` : 'Deadline reached'}
+              </div>
+              <small>Deadline {deadlineDate.toLocaleDateString()}</small>
+            </div>
+            <div className="insight-tile">
+              <label>Daily pace to finish</label>
+              <div className="insight-value">{formatEthValue(requiredDaily)} ETH</div>
+              <small>Matching this pace reaches the target on time</small>
+            </div>
+            <div className="insight-tile">
+              <label>Weekly boost</label>
+              <div className="insight-value">{formatEthValue(requiredWeekly)} ETH</div>
+              <small>Cover this weekly to stay ahead of schedule</small>
+            </div>
+          </div>
+
+          <div className="insight-note">{getCoachMessage()}</div>
         </div>
 
         {!goal.isWithdrawn && (
